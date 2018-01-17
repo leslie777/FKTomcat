@@ -2,6 +2,7 @@ package com.fkedu.tomcat;
 
 import com.fkedu.http.FKRequest;
 import com.fkedu.http.FKResponse;
+import com.fkedu.http.FKFilter;
 import com.fkedu.http.FKServlet;
 
 import java.io.FileInputStream;
@@ -12,6 +13,7 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -19,27 +21,53 @@ import java.util.Properties;
  */
 public class FKTomcat {
     private  int port = 8080;
+
     private ServerSocket server;
-    //TODO 改造支持正则的url地址
+
+    private Map<Pattern, Class<?>> filterMaping = new HashMap<Pattern, Class<?>>();
+
     private Map<String,FKServlet> servletMaping = new HashMap<>();
+
     private Properties webxml = new Properties();
 
+    private String WEB_INF = this.getClass().getResource("/").getPath();
+
+    public FKTomcat() {
+    }
+    public FKTomcat(int port) {
+        this.port = port;
+    }
+
     private void  init(){
-        //加载web.xml文件，t同时初始化servletmapping对象
+        FileInputStream fis = null;
+        //加载web.xml文件，t同时初始化filtermapping对象
         try{
-            String WEB_INF = this.getClass().getResource("/").getPath();
-            FileInputStream fis = new FileInputStream(WEB_INF+"web.properties");
+
+            fis = new FileInputStream(WEB_INF+"web.properties");
+
             webxml.load(fis);
 
             for (Object k : webxml.keySet()) {
                 String key = k.toString();
-                if(key.endsWith(".url")){
+                if(key.endsWith(".url")&&key.startsWith("filter")){
+                    String filterName = key.replaceAll("\\.url$","");
+                    String url = webxml.getProperty(key);
+
+                    Pattern pattern = Pattern.compile(url);
+
+                    String className = webxml.getProperty(filterName+".className");
+
+                    FKFilter obj = (FKFilter) Class.forName(className).newInstance();
+
+                    Class<?> filterClass = Class.forName(className);
+
+                    filterMaping.put(pattern,filterClass);
+                } else if(key.endsWith(".url")&&key.startsWith("servlet")){
                     String servletName = key.replaceAll("\\.url$","");
                     String url = webxml.getProperty(key);
                     String className = webxml.getProperty(servletName+".className");
                     FKServlet obj = (FKServlet) Class.forName(className).newInstance();
                     servletMaping.put(url,obj);
-
                 }
             }
         }catch(Exception e){
@@ -61,40 +89,60 @@ public class FKTomcat {
 
         //4. 实现动态调用doget/dopost方法，并且能够自定义返回结果
         //想办法拿到用户请求的url
-        String url = request.getUrl();
-        if(servletMaping.containsKey(url)) {
-            servletMaping.get(url).service(request,response);
-        }else {
-            response.write("404 - nutfound");
+        try{
+            String url = request.getUrl();
+            
+            for (Map.Entry<Pattern, Class<?>> entry : filterMaping.entrySet()) {
+                //映射中只要能找到
+                if(entry.getKey().matcher(url).matches()) {
+                    FKFilter filter = (FKFilter)entry.getValue().newInstance();
+                    filter.doFilter(request,response);
+                    break;
+                }
+            }
+            if(servletMaping.containsKey(url)){
+                servletMaping.get(url).service(request,response);
+            }else {
+                response.write("404 - NotFound");
+            }
+        }catch (Exception e){
+            response.write("500 ," + e.getMessage());
+        } finally {
+            is.close();
+            os.close();
+            //为什么关闭client ,应为http请求时采用短链接，用完不关闭就会一直转
+            client.close();
         }
-        //servletMaping.get(request.getMethod()).service(request,response);
 
-        os.flush();
-        os.close();
-        //为什么关闭client ,应为http请求时采用短链接，用完不关闭就会一直转
-        client.close();
+
+
     }
 
 
     public  void start(){
-        //1。加载配置文件，初始化servletmappingar
+        //1。加载配置文件，初始化filtermappingar
         init();
         try {
             server = new ServerSocket(this.port);
-            System.out.println("建立通信端口："+this.port);
-          //  Socket socket = server.accept();
-            //System.out.println(socket);
-            //2. 等待用户请求 用一个死循环来等待用户请求
-            while (true) {
+            System.out.println("FK tomcat 已启动，建通端口为："+this.port);
+
+        }catch (Exception e){
+            System.out.println("FK tomcat 启动失败，" + e.getMessage());
+            return;
+        }
+
+        //2. 等待用户请求 用一个死循环来等待用户请求
+        while (true) {
+            try{
                 Socket client = server.accept();
                 process(client);
+            }catch (Exception e){
+                e.printStackTrace();
             }
-        }catch (Exception e){
-            e.printStackTrace();
         }
     }
 
     public static void main(String[] args) {
-        new FKTomcat().start();
+        new FKTomcat(8888).start();
     }
 }

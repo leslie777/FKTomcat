@@ -12,7 +12,7 @@ public class FKRequest {
     private String url;
 
     public FKRequest(InputStream is){
-//http协议就是一串字符串,里面就有url
+        //http协议中获取到客户端带过来的信息就是一串字符串,里面就有url
         try {
             String content = "";
             byte [] buff = new byte[1024];

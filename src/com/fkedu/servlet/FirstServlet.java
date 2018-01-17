@@ -16,7 +16,7 @@ public class FirstServlet extends FKServlet{
 
     @Override
     public void doPost(FKRequest request, FKResponse response) throws Exception{
-        response.write("This is First Servlet");
+        response.write("This is First Servlet,method = " + request.getMethod() +",url = " + request.getUrl());
     }
 }
 

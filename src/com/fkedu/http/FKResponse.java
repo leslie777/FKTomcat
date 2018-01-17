@@ -13,5 +13,6 @@ public class FKResponse {
 
     public void write(String outString) throws Exception{
         os.write(outString.getBytes());
+        os.flush();
     }
 }
