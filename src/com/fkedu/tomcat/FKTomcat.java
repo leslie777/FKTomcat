@@ -91,7 +91,7 @@ public class FKTomcat {
         //想办法拿到用户请求的url
         try{
             String url = request.getUrl();
-            
+
             for (Map.Entry<Pattern, Class<?>> entry : filterMaping.entrySet()) {
                 //映射中只要能找到
                 if(entry.getKey().matcher(url).matches()) {

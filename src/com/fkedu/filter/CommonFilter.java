@@ -1,4 +1,4 @@
-package com.fkedu.servlet;
+package com.fkedu.filter;
 
 import com.fkedu.http.FKFilter;
 import com.fkedu.http.FKRequest;
